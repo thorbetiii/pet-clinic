@@ -1,12 +1,26 @@
 services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    environment:
+      MYSQL_DATABASE: petclinic
+      MYSQL_ROOT_PASSWORD: petclinic
+    networks:
+      - petclinic-net
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -ppetclinic || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 40s
   config-server:
     build:
       context: .
       dockerfile: spring-petclinic-config-server/Dockerfile
     image: petclinic/config-server:dev
     container_name: config-server
-    ports:
-      - "8888:8888"
     environment:
       SPRING_PROFILES_ACTIVE: docker
     networks:
@@ -24,8 +38,6 @@ services:
       dockerfile: spring-petclinic-discovery-server/Dockerfile
     image: petclinic/discovery-server:dev
     container_name: discovery-server
-    ports:
-      - "8761:8761"
     environment:
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
@@ -46,14 +58,17 @@ services:
       dockerfile: spring-petclinic-customers-service/Dockerfile
     image: petclinic/customers-service:dev
     container_name: customers-service
-    ports:
-      - "8081:8081"
     environment:
-      SPRING_PROFILES_ACTIVE: docker
+      SPRING_PROFILES_ACTIVE: docker,mysql
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/petclinic?allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: petclinic
     depends_on:
       config-server:
         condition: service_healthy
       discovery-server:
+        condition: service_healthy
+      mysql:
         condition: service_healthy
     networks:
       - petclinic-net
@@ -93,3 +108,6 @@ services:
 networks:
   petclinic-net:
     driver: bridge
+
+volumes:
+  mysql-data:
